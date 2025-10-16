@@ -7,13 +7,23 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 
-import org.json.*;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.JSONTokener;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -104,11 +114,95 @@ public class CS1200API
 			}
 			
 		});
+		
+		server.createContext("/api/ai", new APIHandler(){
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				String text = JSON.getString("msg");
+				
+				String aiText = sendChatGPTAPIRequest(text);
+				
+				JSONObject response = new JSONObject();
+				response.put("response", 200);
+				response.put("response-text", "OpenAI response successfully accessed");
+				response.put("ai-text", aiText);
+				//response.put("account", username + "-" + password);
+				System.out.println(response.toString());
+				
+				return response;
+			}
+			
+		});
+		
 		server.start();
 		System.out.println("Server Running");
 		Thread.currentThread().join();
 	}
 	
+	static String loadApiKey() {
+		try {
+            return Files.readString(new File("/mnt/c/Users/parri/Documents/Eclipse_Stuff/RAs_Programs/CS1200ProjectAPI/apikey.txt").toPath()).trim();
+        } catch (Exception e) {
+        	e.printStackTrace();
+        }
+		
+		return null;
+	}
+	
+	protected static String sendChatGPTAPIRequest(String text)
+	{
+		String apiKeyString = loadApiKey();
+		
+		System.out.println("API STRING KEY - " + apiKeyString);
+		
+		String body =
+		        "{" + 
+		          "\"model\": \"gpt-5-nano\"," + 
+		          "\"messages\": [" + 
+		            "{\"role\": \"system\", \"content\": \"You are a helpful assistant that will get a question and output a pros and cons list of the pros and cons of agreeing to that question. You must keep your response under 200 characters\"}," + 
+		            "{\"role\": \"user\", \"content\": \"" + text + "\"}" + 
+		          "]" + 
+		        "}";
+		
+		HttpRequest request = HttpRequest.newBuilder()
+		                .uri(URI.create("https://api.openai.com/v1/chat/completions"))
+		                .header("Content-Type", "application/json")
+		                .header("Authorization", "Bearer " + apiKeyString)
+		                .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
+		                .build();
+
+		HttpClient client = HttpClient.newHttpClient();
+		HttpResponse<String> response = null;
+		
+		try
+		{
+			response = client.send(request, HttpResponse.BodyHandlers.ofString());
+		} catch (IOException e)
+		{
+		} catch (InterruptedException e)
+		{
+		}
+		
+		String responseBody = response.body();
+		System.out.println(responseBody);
+		
+		
+		JSONObject root = new JSONObject(responseBody);
+		JSONArray choices = root.getJSONArray("choices");
+		JSONObject firstChoice = choices.getJSONObject(0);
+		JSONObject message = firstChoice.getJSONObject("message");
+		String content = message.getString("content");
+		
+		System.out.println("CHATGPT REPLY");
+		System.out.println(content);
+		
+		return content;
+	}
+
 	static class MyHandler implements HttpHandler
 	{
 		private String htmlFile;
