@@ -48,8 +48,11 @@ public class CS1200API
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
+				JSONObject response = new JSONObject();
 				
-				return null;
+				response.put("response", 200);
+				
+				return response;
 			}
 			
 		});
@@ -61,7 +64,7 @@ public class CS1200API
 				
 				response.put("response", 200);
 				
-				return null;
+				return response;
 			}
 			
 		});
@@ -69,8 +72,11 @@ public class CS1200API
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
+				JSONObject response = new JSONObject();
 				
-				return null;
+				response.put("response", 200);
+				
+				return response;
 			}
 			
 		});
@@ -84,7 +90,7 @@ public class CS1200API
 		private String htmlFile;
 		public MyHandler(String htmlFile)
 		{
-			this.htmlFile = "/mnt/c/Users/parri/Documents/Eclipse_Stuff/RAs_Programs/HTTPS_Website/cs1200_website/" + htmlFile;
+			this.htmlFile = "/mnt/c/Users/parri/Documents/Eclipse_Stuff/RAs_Programs/CS1200ProjectAPI/" + htmlFile;
 		}
 		public void handle(HttpExchange exchange) throws IOException {
 		    System.out.println("Got Request: " + exchange.getRequestHeaders().getFirst("User-Agent") + " - " + exchange.getRemoteAddress().getAddress());
