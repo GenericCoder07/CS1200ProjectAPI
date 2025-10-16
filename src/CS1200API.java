@@ -48,9 +48,17 @@ public class CS1200API
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
-				JSONObject response = new JSONObject();
+				if(JSON == null)
+					return nullResponse();
 				
+				String username = JSON.getString("username");
+				String password = JSON.getString("password");
+				
+				JSONObject response = new JSONObject();
 				response.put("response", 200);
+				response.put("response-text", "Account successfully Created");
+				response.put("account", username + "-" + password);
+				System.out.println(response.toString());
 				
 				return response;
 			}
@@ -60,9 +68,17 @@ public class CS1200API
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
-				JSONObject response = new JSONObject();
+				if(JSON == null)
+					return nullResponse();
 				
+				String username = JSON.getString("username");
+				String password = JSON.getString("password");
+				
+				JSONObject response = new JSONObject();
 				response.put("response", 200);
+				response.put("response-text", "Account successfully Created");
+				response.put("account", username + "-" + password);
+				System.out.println(response.toString());
 				
 				return response;
 			}
@@ -72,9 +88,17 @@ public class CS1200API
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
-				JSONObject response = new JSONObject();
+				if(JSON == null)
+					return nullResponse();
 				
+				String username = JSON.getString("username");
+				String password = JSON.getString("password");
+				
+				JSONObject response = new JSONObject();
 				response.put("response", 200);
+				response.put("response-text", "Account successfully Created");
+				response.put("account", username + "-" + password);
+				System.out.println(response.toString());
 				
 				return response;
 			}
@@ -153,12 +177,36 @@ public class CS1200API
 				ln = reader.readLine();
 			}
 			
+			System.out.println("String to tokenize:\n" + builder.toString());
+			
+			System.out.println("Creating tokenizer");
 			JSONTokener tokenizer = new JSONTokener(builder.toString());
 			
-			JSONObject response = handleAPICall(new JSONObject(tokenizer));
+
+			System.out.println("Creating JSONObject");
+			JSONObject object = null;
+			try
+			{
+				object = new JSONObject(tokenizer);
+			} 
+			catch (JSONException e)
+			{
+				e.printStackTrace();
+			}
 			
 			
+			System.out.println("Calling API handler");
+			JSONObject response = handleAPICall(object);
+			
+
+			System.out.println("Creating String");
 			String responseString = response.toString();
+
+			System.out.println("Got - " + responseString);
+			
+			System.out.println("Response code - " + response.getInt("response"));
+			
+			System.out.println("Creating Response Headers");
 		    exchange.sendResponseHeaders(response.getInt("response"), responseString.getBytes().length);
 		    try (OutputStream os = exchange.getResponseBody()) {
 		        os.write(responseString.getBytes());
@@ -170,6 +218,14 @@ public class CS1200API
 		    }
 		}
 		public abstract JSONObject handleAPICall(JSONObject JSON);
+		protected JSONObject nullResponse()
+		{
+			JSONObject response = new JSONObject();
+			response.put("response", 400);
+			response.put("response-text", "Invalid JSON Request");
+			System.out.println(response.toString());
+			return response;
+		}
 	}
 
 	
