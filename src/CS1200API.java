@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 
+import org.json.*;
+
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -44,24 +46,30 @@ public class CS1200API
 		server.createContext("/api/about", new MyHandler("api.html"));
 		server.createContext("/api/account/register", new APIHandler() {
 
-			public String handleAPICall(String request)
+			public JSONObject handleAPICall(JSONObject JSON)
 			{
+				
 				return null;
 			}
 			
 		});
 		server.createContext("/api/account/login", new APIHandler(){
 
-			public String handleAPICall(String request)
+			public JSONObject handleAPICall(JSONObject JSON)
 			{
+				JSONObject response = new JSONObject();
+				
+				response.put("response", 200);
+				
 				return null;
 			}
 			
 		});
 		server.createContext("/api/accounts/verify", new APIHandler(){
 
-			public String handleAPICall(String request)
+			public JSONObject handleAPICall(JSONObject JSON)
 			{
+				
 				return null;
 			}
 			
@@ -139,11 +147,15 @@ public class CS1200API
 				ln = reader.readLine();
 			}
 			
-			String response = handleAPICall(builder.toString());
+			JSONTokener tokenizer = new JSONTokener(builder.toString());
 			
-		    exchange.sendResponseHeaders(200, response.getBytes().length);
+			JSONObject response = handleAPICall(new JSONObject(tokenizer));
+			
+			
+			String responseString = response.toString();
+		    exchange.sendResponseHeaders(response.getInt("response"), responseString.getBytes().length);
 		    try (OutputStream os = exchange.getResponseBody()) {
-		        os.write(response.getBytes());
+		        os.write(responseString.getBytes());
 		    os.close();
 		    }
 		    catch(IOException e)
@@ -151,7 +163,7 @@ public class CS1200API
 		    	e.printStackTrace();
 		    }
 		}
-		public abstract String handleAPICall(String request);
+		public abstract JSONObject handleAPICall(JSONObject JSON);
 	}
 
 	
