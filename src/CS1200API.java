@@ -13,7 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
+import java.sql.SQLException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
@@ -29,12 +29,15 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import java_sql_lib_raymond.SQLDatabase;
+
 public class CS1200API
 {
-
+	static SQLDatabase sqlDatabase;
 	@SuppressWarnings("resource")
-	public static void main(String[] args) throws IOException, InterruptedException
+	public static void main(String[] args) throws IOException, InterruptedException, SQLException
 	{
+		sqlDatabase = new SQLDatabase("./sqldb/mydb");
 		
 		Arrays.toString(new int[]{9});
 		HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
@@ -61,16 +64,30 @@ public class CS1200API
 				if(JSON == null)
 					return nullResponse();
 				
-				String username = JSON.getString("username");
-				String password = JSON.getString("password");
-				
-				JSONObject response = new JSONObject();
-				response.put("response", 200);
-				response.put("response-text", "Account successfully Created");
-				response.put("account", username + "-" + password);
-				System.out.println(response.toString());
-				
-				return response;
+				try
+				{
+					String username = JSON.getString("username");
+					String password = JSON.getString("password");
+					String email = JSON.getString("email");
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("response-text", "Account successfully Created");
+					response.put("account", username + "-" + password);
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
 			}
 			
 		});
@@ -81,36 +98,29 @@ public class CS1200API
 				if(JSON == null)
 					return nullResponse();
 				
-				String username = JSON.getString("username");
-				String password = JSON.getString("password");
-				
-				JSONObject response = new JSONObject();
-				response.put("response", 200);
-				response.put("response-text", "Account successfully Created");
-				response.put("account", username + "-" + password);
-				System.out.println(response.toString());
-				
-				return response;
-			}
-			
-		});
-		server.createContext("/api/accounts/verify", new APIHandler(){
-
-			public JSONObject handleAPICall(JSONObject JSON)
-			{
-				if(JSON == null)
-					return nullResponse();
-				
-				String username = JSON.getString("username");
-				String password = JSON.getString("password");
-				
-				JSONObject response = new JSONObject();
-				response.put("response", 200);
-				response.put("response-text", "Account successfully Created");
-				response.put("account", username + "-" + password);
-				System.out.println(response.toString());
-				
-				return response;
+				try
+				{
+					String username = JSON.getString("username");
+					String password = JSON.getString("password");
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("response-text", "Account successfully Created");
+					response.put("account", username + "-" + password);
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
 			}
 			
 		});
@@ -122,20 +132,32 @@ public class CS1200API
 				if(JSON == null)
 					return nullResponse();
 				
-				String text = JSON.getString("msg");
-				
-				String aiText = sendChatGPTAPIRequest(text);
-				
-				JSONObject response = new JSONObject();
-				response.put("response", 200);
-				response.put("response-text", "OpenAI response successfully accessed");
-				response.put("ai-text", aiText);
-				//response.put("account", username + "-" + password);
-				System.out.println(response.toString());
-				
-				return response;
+				try
+				{
+					String text = JSON.getString("msg");
+					
+					String aiText = sendChatGPTAPIRequest(text);
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("response-text", "OpenAI response successfully accessed");
+					response.put("ai-text", aiText);
+					
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
 			}
-			
 		});
 		
 		server.start();
