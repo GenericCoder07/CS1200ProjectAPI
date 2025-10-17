@@ -13,8 +13,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.security.SecureRandom;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -34,10 +37,92 @@ import java_sql_lib_raymond.SQLDatabase;
 public class CS1200API
 {
 	static SQLDatabase sqlDatabase;
+	
+	static class UserAccount
+	{
+		String username;
+		String password;
+		String email;
+		boolean isAdmin;
+		
+		public UserAccount(String username, String password, String email, boolean isAdmin)
+		{
+			this.username = username;
+			this.password = password;
+			this.email = email;
+			this.isAdmin = isAdmin;
+		}
+	}
+	
+	static final class Sessions 
+	{
+	    private static final SecureRandom RNG = new SecureRandom();
+
+	    public static String newSessionId() 
+	    {
+	    	
+	    	byte[] buf = new byte[32];
+	    	RNG.nextBytes(buf);
+	    	return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+	    }
+	}
+	
+	static class UserAccountDatabase
+	{
+		static
+		{
+			try
+			{
+				sqlDatabase = new SQLDatabase("./sqldb/mydb");
+				
+				PreparedStatement statement = sqlDatabase.runStatement("""
+	                    CREATE TABLE IF NOT EXISTS users (
+	                      id IDENTITY PRIMARY KEY,
+	                      username VARCHAR(100) NOT NULL UNIQUE,
+	                      password_hash VARCHAR(255) NOT NULL,
+	                      email VARCHAR(255) NOT NULL UNIQUE,
+	                      is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+	                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	                    )
+	                """);
+				statement.execute();
+				statement.close();
+			} 
+			catch (SQLException e)
+			{
+				e.printStackTrace();
+				System.exit(1);
+			}
+		}
+		
+		static boolean addNewUserAccount(UserAccount account)
+		{
+			try
+			{
+				String insert = "INSERT INTO users (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)";
+	            
+	            
+	            
+				PreparedStatement statement = sqlDatabase.runStatement(insert);
+				statement.setString(1, "admin");
+	            statement.setString(2, hashPassword("ChangeMe123"));  // 🔒 see below
+	            statement.setString(3, "admin@example.com");
+	            statement.setBoolean(4, true);
+	            statement.executeUpdate();
+				statement.close();
+			} 
+			catch (SQLException e)
+			{
+				e.printStackTrace();
+				System.exit(1);
+			}
+		}
+	}
+	
 	@SuppressWarnings("resource")
 	public static void main(String[] args) throws IOException, InterruptedException, SQLException
 	{
-		sqlDatabase = new SQLDatabase("./sqldb/mydb");
+		
 		
 		Arrays.toString(new int[]{9});
 		HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
