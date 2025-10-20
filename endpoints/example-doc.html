@@ -1,0 +1,55 @@
+<section>
+  <h2>Create User</h2>
+  <p><b>Method:</b> POST<br><b>Path:</b> /api/users</p>
+
+  <h3>Description</h3>
+  <p>Creates a new user account in the system.</p>
+
+  <h3>Input</h3>
+  <pre><code>{
+  "username": "string",
+  "email": "string",
+  "password": "string",
+  "isAdmin": false
+}</code></pre>
+
+  <dl>
+    <dt>username</dt>
+    <dd>Required. User’s unique handle (3–32 characters).</dd>
+
+    <dt>email</dt>
+    <dd>Required. Valid email address for account verification.</dd>
+
+    <dt>password</dt>
+    <dd>Required. Must be at least 8 characters; hashed before storage.</dd>
+
+    <dt>isAdmin</dt>
+    <dd>Optional. Boolean flag indicating administrative privileges. Defaults to <code>false</code>.</dd>
+  </dl>
+
+  <h3>Output</h3>
+  <pre><code>{
+  "id": "uuid",
+  "username": "string",
+  "email": "string",
+  "isAdmin": false,
+  "createdAt": "ISO-8601 timestamp"
+}</code></pre>
+
+  <dl>
+    <dt>id</dt>
+    <dd>Unique identifier for the user.</dd>
+
+    <dt>username</dt>
+    <dd>Echo of the provided username.</dd>
+
+    <dt>email</dt>
+    <dd>Echo of the provided email address.</dd>
+
+    <dt>isAdmin</dt>
+    <dd>Reflects the user’s admin status.</dd>
+
+    <dt>createdAt</dt>
+    <dd>UTC creation time of the record.</dd>
+  </dl>
+</section>
