@@ -116,33 +116,22 @@ public class CS1200API
 				e.printStackTrace();
 				System.exit(1);
 			}
+			
+			return true;
 		}
 	}
+	
+	static HashMap<Integer, String> verificationCodes = new HashMap<>();
 	
 	@SuppressWarnings("resource")
 	public static void main(String[] args) throws IOException, InterruptedException, SQLException
 	{
-		
-		
-		Arrays.toString(new int[]{9});
 		HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 		
 		server.setExecutor(Executors.newFixedThreadPool(10));
 		
-		server.createContext("/", new HttpHandler() {
-
-			public void handle(HttpExchange exchange) throws IOException
-			{
-				String response = "This is an undefined endpoint\ntry going to **/api/about";
-				exchange.sendResponseHeaders(404, response.length());
-				OutputStream os = exchange.getResponseBody();
-				os.write(response.getBytes());
-				os.close();
-			}
-			
-		});
-		server.createContext("/api/about", new MyHandler("api.html"));
-		server.createContext("/api/account/register", new APIHandler() {
+		server.createContext("/", new MyHandler("api.html"));
+		server.createContext("/api/accounts/signin", new APIHandler() {
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
@@ -154,6 +143,8 @@ public class CS1200API
 					String username = JSON.getString("username");
 					String password = JSON.getString("password");
 					String email = JSON.getString("email");
+					
+					
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
@@ -176,7 +167,108 @@ public class CS1200API
 			}
 			
 		});
-		server.createContext("/api/account/login", new APIHandler(){
+		server.createContext("/api/accounts/reset_password/verify", new APIHandler(){
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				try
+				{
+					String email = JSON.getString("email");
+					String password = JSON.getString("new-password");
+					int code = JSON.getInt("code");
+					
+					
+					
+					String emailStored = verificationCodes.get(code);
+					
+					JSONObject response = new JSONObject();
+					
+					if(emailStored != null && emailStored.equals(email))
+					{
+						response.put("response", 200);
+						response.put("response-text", "Password successfully changed");
+						response.put("successful", true);
+					}
+					else 
+					{
+						response.put("response", 200);
+						response.put("response-text", "Code is incorrect");
+						response.put("successful", false);
+					}
+					
+					
+					
+					
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
+			}
+			
+		});
+		server.createContext("/api/accounts/reset_password", new APIHandler(){
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				try
+				{
+					String email = JSON.getString("email");
+					
+					if(!checkAccountExists(email))
+					{
+						JSONObject response = new JSONObject();
+						response.put("response", 200);
+						response.put("response-text", "Account does not exist");
+						response.put("successful", false);
+						return response;
+					}
+					
+					int code = new Random().nextInt(100000, 1000000);
+					
+					while(verificationCodes.get(code) != null)
+						code = new Random().nextInt(100000, 1000000);
+					
+					verificationCodes.put(code, email);
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("response-text", "Code sent");
+					response.put("successful", true);
+					
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
+			}
+			
+		});
+		server.createContext("/api/accounts/login", new APIHandler(){
 
 			public JSONObject handleAPICall(JSONObject JSON)
 			{
@@ -245,22 +337,71 @@ public class CS1200API
 			}
 		});
 		
+		server.createContext("/api/ai/can", new APIHandler(){
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				try
+				{
+					String text = JSON.getString("msg");
+					
+					String aiText = sendChatGPTAPIRequest(text);
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("response-text", "OpenAI response successfully accessed");
+					response.put("ai-text", aiText);
+					
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
+			}
+		});
+		
 		server.start();
 		System.out.println("Server Running");
 		Thread.currentThread().join();
 	}
 	
-	static String loadApiKey() {
-		try {
-            return Files.readString(new File("/mnt/c/Users/parri/Documents/Eclipse_Stuff/RAs_Programs/CS1200ProjectAPI/apikey.txt").toPath()).trim();
-        } catch (Exception e) {
+	static boolean checkAccountExists(String email)
+	{
+		return true;
+	}
+
+	public static String hashPassword(String string)
+	{
+		return string;
+	}
+
+	static String loadApiKey() 
+	{
+		try 
+		{
+            return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("C:\\", "mnt\\c\\").replace("C:/", "mnt/c/")).toPath()).trim();
+        } 
+		catch (Exception e) 
+		{
         	e.printStackTrace();
         }
 		
 		return null;
 	}
 	
-	protected static String sendChatGPTAPIRequest(String text)
+	protected static String sendChatGPTAPIRequest(String prompt, String input)
 	{
 		String apiKeyString = loadApiKey();
 		
@@ -270,8 +411,8 @@ public class CS1200API
 		        "{" + 
 		          "\"model\": \"gpt-5-nano\"," + 
 		          "\"messages\": [" + 
-		            "{\"role\": \"system\", \"content\": \"You are a helpful assistant that will get a question and output a pros and cons list of the pros and cons of agreeing to that question. You must keep your response under 200 characters\"}," + 
-		            "{\"role\": \"user\", \"content\": \"" + text + "\"}" + 
+		            "{\"role\": \"system\", \"content\": \"" + prompt + "\"}," + 
+		            "{\"role\": \"user\", \"content\": \"" + input + "\"}" + 
 		          "]" + 
 		        "}";
 		
