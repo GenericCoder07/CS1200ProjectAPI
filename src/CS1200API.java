@@ -132,7 +132,7 @@ public class CS1200API
 		
 		static UserAccount getUserAccount(String username, String password)
 		{
-			
+			return null;
 		}
 	}
 	
