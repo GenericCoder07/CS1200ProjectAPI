@@ -1,0 +1,47 @@
+<section>
+  <h2>Generate AI Canned Statements</h2>
+  <p><b>Method:</b> POST<br><b>Path:</b> /api/ai/can</p>
+
+  <h3>Description</h3>
+  <p>Creates a given number of random canned AI statements.</p>
+
+  <h3>Input</h3>
+  <pre><code>{
+  "quantity": int
+}</code></pre>
+
+  <dl>
+    <dt>quantity</dt>
+    <dd>Required. Number representing number of statements to generate.</dd>
+  </dl>
+
+  <h3>Output</h3>
+  <pre><code>{
+  "response": int,
+  "response-text": "string",
+  "ai-canned-response-1": "string",
+  "ai-canned-response-2": "string",
+  "ai-canned-response-3": "string",
+  "ai-canned-response-...": "string",
+}</code></pre>
+
+  <dl>
+    <dt>response</dt>
+    <dd>Response returned by the API request.</dd>
+
+    <dt>response-text</dt>
+    <dd>Response text returned by the API request.</dd>
+
+    <dt>ai-canned-response-1</dt>
+    <dd>The first AI canned response.</dd>
+
+    <dt>ai-canned-response-2</dt>
+    <dd>The second AI canned response.</dd>
+
+    <dt>ai-canned-response-3</dt>
+    <dd>The third AI canned response.</dd>
+
+    <dt>ai-canned-response-...</dt>
+    <dd>The number of canned responses will continue until the number is equal to the quantity given.</dd>
+  </dl>
+</section>
