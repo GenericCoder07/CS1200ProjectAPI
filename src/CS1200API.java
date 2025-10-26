@@ -45,7 +45,9 @@ public class CS1200API
 		String username;
 		String password;
 		String email;
+		String session_id;
 		boolean isAdmin;
+		boolean isVerified;
 		
 		public UserAccount(String username, String password, String email, boolean isAdmin)
 		{
@@ -71,19 +73,22 @@ public class CS1200API
 	
 	static class UserAccountDatabase
 	{
-		static
+		static void init()
 		{
 			try
 			{
 				sqlDatabase = new SQLDatabase("./sqldb/mydb");
+				System.out.println("Database created");
 				
 				PreparedStatement statement = sqlDatabase.runStatement("""
 	                    CREATE TABLE IF NOT EXISTS users (
 	                      id IDENTITY PRIMARY KEY,
 	                      username VARCHAR(100) NOT NULL UNIQUE,
-	                      password_hash VARCHAR(255) NOT NULL,
+	                      password VARCHAR(255) NOT NULL,
 	                      email VARCHAR(255) NOT NULL UNIQUE,
+	                      session_id VARCHAR(255) UNIQUE,
 	                      is_admin BOOLEAN NOT NULL DEFAULT FALSE,
+	                      is_verified BOOLEAN NOT NULL DEFAULT FALSE,
 	                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	                    )
 	                """);
@@ -101,8 +106,11 @@ public class CS1200API
 		{
 			try
 			{
-				String insert = "INSERT INTO users (username, password_hash, email, is_admin, is_verified, session_id) VALUES (?, ?, ?, ?, ?, ?)";
+				String insert = "INSERT INTO users (username, password, email, is_admin, is_verified, session_id) VALUES (?, ?, ?, ?, ?, ?)";
 	            
+				account.session_id = null;
+				account.isVerified = false;
+				
 				PreparedStatement statement = sqlDatabase.runStatement(insert);
 				statement.setString(1, account.username);
 	            statement.setString(2, hashPassword(account.password));  // 🔒 see below
@@ -121,6 +129,11 @@ public class CS1200API
 			
 			return true;
 		}
+		
+		static UserAccount getUserAccount(String username, String password)
+		{
+			
+		}
 	}
 	
 	static HashMap<Integer, String> verificationCodes = new HashMap<>();
@@ -129,6 +142,10 @@ public class CS1200API
 	public static void main(String[] args) throws IOException, InterruptedException, SQLException
 	{
 		loadApiKey();
+		
+		UserAccountDatabase.init();
+		ServerManager manager = new ServerManager();
+		manager.setVisible(true);
 		
 		HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 		
@@ -578,88 +595,6 @@ public class CS1200API
 
 	
 }
-
-class UserDatabase 
-{
-    private final File dbFile;
-    private final Map<String, User> users = new HashMap<>();
-
-    public UserDatabase(String filename) throws IOException 
-    {
-        this.dbFile = new File(filename);
-        if (dbFile.exists()) load();
-        else dbFile.createNewFile();
-    }
-
-    // Add or update a user
-    public void addUser(String username, String email, String password, boolean isAdmin) throws IOException 
-    {
-        
-        users.put(username, new User(username, email, password, User.getUserId(username), false, isAdmin));
-        save();
-    }
-
-    // Find user by username
-    public User findUser(String username) 
-    {
-        return users.get(username);
-    }
-
-    // Load JSON-like data from file
-    private void load() throws IOException 
-    {
-        try (BufferedReader reader = new BufferedReader(new FileReader(dbFile))) 
-        {
-            String line;
-            while ((line = reader.readLine()) != null) 
-            {
-                User user = parseJsonLine(line.trim());
-                users.put(user.username, user);
-            }
-        }
-    }
-
-    private void save() throws IOException 
-    {
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(dbFile,false))) 
-        {
-            for (User u : users.values()) 
-            {
-                writer.write(toJsonLine(u));
-                writer.newLine();
-            }
-        }
-    }
-
-    private String toJsonLine(User user) 
-    {
-        return String.format("{username:%s,username:%s,password:%s,userid:%d,verified:%b,isadmin:%b}",
-                user.username,
-                user.email,
-                user.password,
-                user.userid,
-                user.verified,
-                user.isAdmin);
-    }
-
-    // Minimal parser for our simple JSON format
-    public static User parseJsonLine(String line) 
-    {
-        Map<String,String> map = new HashMap<>();
-        // Remove braces
-        line = line.substring(1,line.length()-1); // strip {}
-        String[] pairs = line.split("\",\"");
-        for (String pair : pairs) {
-            String[] kv = pair.replace("\"","").split(":",2);
-            map.put(kv[0], kv[1]);
-        }
-        
-        User user = new User(map.get("username"), map.get("email"), map.get("password"), Long.parseLong(map.get("userid")), Boolean.parseBoolean(map.get("verified")), Boolean.parseBoolean(map.get("isadmin")));
-        
-        return user;
-    }
-}
-
 
 class User
 {
