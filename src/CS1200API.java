@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
 
+import javax.swing.JOptionPane;
+
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -99,15 +101,15 @@ public class CS1200API
 		{
 			try
 			{
-				String insert = "INSERT INTO users (username, password_hash, email, is_admin) VALUES (?, ?, ?, ?)";
-	            
-	            
+				String insert = "INSERT INTO users (username, password_hash, email, is_admin, is_verified, session_id) VALUES (?, ?, ?, ?, ?, ?)";
 	            
 				PreparedStatement statement = sqlDatabase.runStatement(insert);
-				statement.setString(1, "admin");
-	            statement.setString(2, hashPassword("ChangeMe123"));  // 🔒 see below
-	            statement.setString(3, "admin@example.com");
-	            statement.setBoolean(4, true);
+				statement.setString(1, account.username);
+	            statement.setString(2, hashPassword(account.password));  // 🔒 see below
+	            statement.setString(3, account.email);
+	            statement.setBoolean(4, account.isAdmin);
+	            statement.setBoolean(5, false);
+	            statement.setString(6, null);
 	            statement.executeUpdate();
 				statement.close();
 			} 
@@ -126,6 +128,8 @@ public class CS1200API
 	@SuppressWarnings("resource")
 	public static void main(String[] args) throws IOException, InterruptedException, SQLException
 	{
+		loadApiKey();
+		
 		HttpServer server = HttpServer.create(new InetSocketAddress(8080), 0);
 		
 		server.setExecutor(Executors.newFixedThreadPool(10));
@@ -144,7 +148,7 @@ public class CS1200API
 					String password = JSON.getString("password");
 					String email = JSON.getString("email");
 					
-					
+					UserAccountDatabase.addNewUserAccount(new UserAccount(username, password, email, false));
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
@@ -313,7 +317,7 @@ public class CS1200API
 				{
 					String text = JSON.getString("msg");
 					
-					String aiText = sendChatGPTAPIRequest(text);
+					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will get a question and output a pros and cons list of the pros and cons of agreeing to that question. You must keep your response under 200 characters", text);
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
@@ -346,9 +350,9 @@ public class CS1200API
 				
 				try
 				{
-					String text = JSON.getString("msg");
+					int quantity = JSON.getInt("quantity");
 					
-					String aiText = sendChatGPTAPIRequest(text);
+					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will generate x number of random statements. The user will give their response as: \"Generate x statements\" and you will respond with that number of statements seperated by a ` character.", "Generate " + quantity + " statements");
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
@@ -391,14 +395,16 @@ public class CS1200API
 	{
 		try 
 		{
-            return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("C:\\", "mnt\\c\\").replace("C:/", "mnt/c/")).toPath()).trim();
+            return Files.readString(new File(new File("apikey.txt").getAbsolutePath()).toPath()).trim();
         } 
 		catch (Exception e) 
 		{
-        	e.printStackTrace();
+			JOptionPane.showMessageDialog(null, "No OpenAI API key is detected. If you continue,\n"
+											  + "the server will still run, but any request to\n"
+											  + "the /ai or /ai/can endpoints will return an error.", 
+											  "No OpenAI API Key", JOptionPane.ERROR_MESSAGE);
+        	return null;
         }
-		
-		return null;
 	}
 	
 	protected static String sendChatGPTAPIRequest(String prompt, String input)
