@@ -6,7 +6,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 
-public class SQLDatabase
+public class SQLDatabase implements Database
 {
 	private Connection connection;
 	

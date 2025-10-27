@@ -34,11 +34,30 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import java_sql_lib_raymond.Database;
 import java_sql_lib_raymond.SQLDatabase;
+import java_sql_lib_raymond.SupabaseDatabase;
 
 public class CS1200API
 {
 	static SQLDatabase sqlDatabase;
+	static SupabaseDatabase supabaseDatabase;
+	static Database database;
+	
+	static
+	{
+		try
+		{
+			sqlDatabase = new SQLDatabase("./sqldb/mydb");
+			supabaseDatabase = new SupabaseDatabase();
+			
+			database = sqlDatabase;
+		} 
+		catch (SQLException e)
+		{
+			
+		}
+	}
 	
 	static class UserAccount
 	{
@@ -75,12 +94,46 @@ public class CS1200API
 	{
 		static void init()
 		{
+			
+		}
+		
+		static class TableVar
+		{
+			private String name, type, modifiers[];
+			
+			public TableVar(String name, String type, String... modifiers)
+			{
+				this.name = name;
+				this.type = type;
+				this.modifiers = modifiers.clone();
+			}
+			
+			public String toString()
+			{
+				StringBuilder result = new StringBuilder();
+				
+				result.append(name);
+				result.append(" ");
+				result.append(type);
+				result.append(" ");
+				
+				for(String modifier : modifiers)
+				{
+					result.append(modifier);
+					result.append(" ");
+				}
+				
+				return result.toString();
+			}
+		}
+		
+		static void addTable(String name, TableVar... tableVars)
+		{
 			try
 			{
-				sqlDatabase = new SQLDatabase("./sqldb/mydb");
-				System.out.println("Database created");
+				System.out.println("Table created");
 				
-				PreparedStatement statement = sqlDatabase.runStatement("""
+				PreparedStatement statement = database.runStatement("""
 	                    CREATE TABLE IF NOT EXISTS users (
 	                      id IDENTITY PRIMARY KEY,
 	                      username VARCHAR(100) NOT NULL UNIQUE,
@@ -111,7 +164,7 @@ public class CS1200API
 				account.session_id = null;
 				account.isVerified = false;
 				
-				PreparedStatement statement = sqlDatabase.runStatement(insert);
+				PreparedStatement statement = database.runStatement(insert);
 				statement.setString(1, account.username);
 	            statement.setString(2, hashPassword(account.password));  // 🔒 see below
 	            statement.setString(3, account.email);
