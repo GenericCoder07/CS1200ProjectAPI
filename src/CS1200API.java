@@ -1,8 +1,6 @@
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
@@ -15,13 +13,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.security.SecureRandom;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 import javax.swing.JOptionPane;
 
@@ -65,6 +64,7 @@ public class CS1200API
 		String password;
 		String email;
 		String session_id;
+		long session_timestamp;
 		boolean isAdmin;
 		boolean isVerified;
 		
@@ -75,6 +75,13 @@ public class CS1200API
 			this.email = email;
 			this.isAdmin = isAdmin;
 		}
+		
+		protected void setSystemVars(String session_id, long session_timestamp, boolean isVerified)
+		{
+			this.session_id = session_id;
+			this.session_timestamp = session_timestamp;
+			this.isVerified = isVerified;
+		}
 	}
 	
 	static final class Sessions 
@@ -83,7 +90,6 @@ public class CS1200API
 
 	    public static String newSessionId() 
 	    {
-	    	
 	    	byte[] buf = new byte[32];
 	    	RNG.nextBytes(buf);
 	    	return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
@@ -92,9 +98,68 @@ public class CS1200API
 	
 	static class UserAccountDatabase
 	{
+		static HashMap<String, Table> tableNameMap = new HashMap<>();
+		
 		static void init()
 		{
+			tableNameMap.put("users", new Table("users", 
+					new TableVar("id", "IDENTITY", "PRIMARY", "KEY"), 
+					new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
+					new TableVar("password_hash", "VARCHAR(255)", "NOT", "NULL"), 
+					new TableVar("email", "VARCHAR(255)", "NOT", "NULL", "UNIQUE"), 
+					new TableVar("session_id", "VARCHAR(255)", "UNIQUE"), 
+					new TableVar("session_timestamp", "BIGINT(255)", "NOT", "NULL"), 
+					new TableVar("is_admin", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
+					new TableVar("is_verified", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
+					new TableVar("created_at", "TIMESTAMP", "DEFAULT", "CURRENT_TIMESTAMP"
+			)));
 			
+			tableNameMap.forEach((name, table) -> {
+				addTableIfAbsent(table);
+			});
+		}
+		
+		static class Table
+		{
+			private String name;
+			private HashMap<String, TableVar> tableVarNameMap;
+			private TableVar[] tableVars;
+			public Table(String name, TableVar... tableVars)
+			{
+				this.name = name;
+				this.tableVars = tableVars;
+				
+				tableVarNameMap = new HashMap<>();
+				
+				for(TableVar tableVar : tableVars)
+					tableVarNameMap.put(tableVar.getName(), tableVar);
+			}
+			
+			public String getName()
+			{
+				return name;
+			}
+			
+			public TableVar getTableVar(int index)
+			{
+				return tableVars[index];
+			}
+			
+			public TableVar getTableVar(String name)
+			{
+				return tableVarNameMap.get(name);
+			}
+			
+			public void forEach(Consumer<TableVar> func)
+			{
+				for(TableVar tableVar : tableVars)
+					func.accept(tableVar);
+			}
+			
+			public TableVar[] getTableVars()
+			{
+				return tableVars;
+			}
 		}
 		
 		static class TableVar
@@ -106,6 +171,11 @@ public class CS1200API
 				this.name = name;
 				this.type = type;
 				this.modifiers = modifiers.clone();
+			}
+			
+			public String getName()
+			{
+				return name;
 			}
 			
 			public String toString()
@@ -123,28 +193,60 @@ public class CS1200API
 					result.append(" ");
 				}
 				
-				return result.toString();
+				return result.toString().trim();
 			}
 		}
 		
-		static void addTable(String name, TableVar... tableVars)
+		static void addTableIfAbsent(Table table)
 		{
 			try
 			{
 				System.out.println("Table created");
 				
-				PreparedStatement statement = database.runStatement("""
-	                    CREATE TABLE IF NOT EXISTS users (
-	                      id IDENTITY PRIMARY KEY,
-	                      username VARCHAR(100) NOT NULL UNIQUE,
-	                      password VARCHAR(255) NOT NULL,
-	                      email VARCHAR(255) NOT NULL UNIQUE,
-	                      session_id VARCHAR(255) UNIQUE,
-	                      is_admin BOOLEAN NOT NULL DEFAULT FALSE,
-	                      is_verified BOOLEAN NOT NULL DEFAULT FALSE,
-	                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	                    )
-	                """);
+				StringBuilder statementString = new StringBuilder();
+				
+				statementString.append("CREATE TABLE IF NOT EXISTS ");
+				statementString.append(table.getName());
+				statementString.append("(\n");
+				
+				table.forEach(tableVar -> {
+					statementString.append(tableVar.toString());
+					statementString.append(",\n");
+				});
+				
+				statementString.append("\n)\n");
+				
+				PreparedStatement statement = database.runStatement(statementString.toString());
+				statement.execute();
+				statement.close();
+			} 
+			catch (SQLException e)
+			{
+				e.printStackTrace();
+				System.exit(1);
+			}
+		}
+		
+		static void addTable(Table table)
+		{
+			try
+			{
+				System.out.println("Table created");
+				
+				StringBuilder statementString = new StringBuilder();
+				
+				statementString.append("CREATE TABLE ");
+				statementString.append(table.getName());
+				statementString.append("(\n");
+				
+				table.forEach(tableVar -> {
+					statementString.append(tableVar.toString());
+					statementString.append(",\n");
+				});
+				
+				statementString.append("\n)\n");
+				
+				PreparedStatement statement = database.runStatement(statementString.toString());
 				statement.execute();
 				statement.close();
 			} 
@@ -159,9 +261,10 @@ public class CS1200API
 		{
 			try
 			{
-				String insert = "INSERT INTO users (username, password, email, is_admin, is_verified, session_id) VALUES (?, ?, ?, ?, ?, ?)";
+				String insert = "INSERT INTO users (username, password_hash, email, is_admin, is_verified, session_id, session_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)";
 	            
-				account.session_id = null;
+				account.session_id = Sessions.newSessionId();
+				account.session_timestamp = Instant.now().toEpochMilli();
 				account.isVerified = false;
 				
 				PreparedStatement statement = database.runStatement(insert);
@@ -169,8 +272,9 @@ public class CS1200API
 	            statement.setString(2, hashPassword(account.password));  // 🔒 see below
 	            statement.setString(3, account.email);
 	            statement.setBoolean(4, account.isAdmin);
-	            statement.setBoolean(5, false);
-	            statement.setString(6, null);
+	            statement.setBoolean(5, account.isVerified);
+	            statement.setString(6, account.session_id);
+	            statement.setLong(7, account.session_timestamp);
 	            statement.executeUpdate();
 				statement.close();
 			} 
@@ -183,8 +287,29 @@ public class CS1200API
 			return true;
 		}
 		
-		static UserAccount getUserAccount(String username, String password)
+		static UserAccount getUserAccount(String username)
 		{
+			try
+			{
+				String sql = "SELECT * FROM users WHERE username = ?";
+
+				PreparedStatement stmt = database.runStatement(sql);
+				stmt.setString(1, username);
+
+				ResultSet rs = stmt.executeQuery();
+				
+				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
+				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
+				
+				rs.close();
+				stmt.close();
+				return user;
+			} 
+			catch (Exception e)
+			{
+				JOptionPane.showMessageDialog(null, "Exception caught when getting user account - " + e.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
+			}
+			
 			return null;
 		}
 	}
@@ -218,12 +343,14 @@ public class CS1200API
 					String password = JSON.getString("password");
 					String email = JSON.getString("email");
 					
-					UserAccountDatabase.addNewUserAccount(new UserAccount(username, password, email, false));
+					UserAccount user = new UserAccount(username, password, email, false);
+					
+					UserAccountDatabase.addNewUserAccount(user);
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
 					response.put("response-text", "Account successfully Created");
-					response.put("account", username + "-" + password);
+					response.put("account", user.session_id);
 					System.out.println(response.toString());
 					
 					return response;
