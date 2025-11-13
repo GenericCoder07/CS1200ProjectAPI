@@ -42,9 +42,156 @@ public class CS1200API
 	static SQLDatabase sqlDatabase;
 	static SupabaseDatabase supabaseDatabase;
 	static Database database;
+	static HashMap<String, Table> tableNameMap = new HashMap<>();
+	
+	static class Table
+	{
+		private String name;
+		private HashMap<String, TableVar> tableVarNameMap;
+		private TableVar[] tableVars;
+		public Table(String name, TableVar... tableVars)
+		{
+			this.name = name;
+			this.tableVars = tableVars;
+			
+			tableVarNameMap = new HashMap<>();
+			
+			for(TableVar tableVar : tableVars)
+				tableVarNameMap.put(tableVar.getName(), tableVar);
+		}
+		
+		public String getName()
+		{
+			return name;
+		}
+		
+		public TableVar getTableVar(int index)
+		{
+			return tableVars[index];
+		}
+		
+		public TableVar getTableVar(String name)
+		{
+			return tableVarNameMap.get(name);
+		}
+		
+		public void forEach(Consumer<TableVar> func)
+		{
+			for(TableVar tableVar : tableVars)
+				func.accept(tableVar);
+		}
+		
+		public TableVar[] getTableVars()
+		{
+			return tableVars;
+		}
+	}
+	
+	static class TableVar
+	{
+		private String name, type, modifiers[];
+		
+		public TableVar(String name, String type, String... modifiers)
+		{
+			this.name = name;
+			this.type = type;
+			this.modifiers = modifiers.clone();
+		}
+		
+		public String getName()
+		{
+			return name;
+		}
+		
+		public String toString()
+		{
+			StringBuilder result = new StringBuilder();
+			
+			result.append(name);
+			result.append(" ");
+			result.append(type);
+			result.append(" ");
+			
+			for(String modifier : modifiers)
+			{
+				result.append(modifier);
+				result.append(" ");
+			}
+			
+			return result.toString().trim();
+		}
+	}
+	
+	static void addTableIfAbsent(Table table)
+	{
+		try
+		{
+			System.out.println("Table created");
+			
+			StringBuilder statementString = new StringBuilder();
+			
+			statementString.append("CREATE TABLE IF NOT EXISTS ");
+			statementString.append(table.getName());
+			statementString.append("(\n");
+			
+			table.forEach(tableVar -> {
+				statementString.append(tableVar.toString());
+				statementString.append(",\n");
+			});
+			
+			statementString.append("\n)\n");
+			
+			PreparedStatement statement = database.runStatement(statementString.toString());
+			statement.execute();
+			statement.close();
+		} 
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
+	static void addTable(Table table)
+	{
+		try
+		{
+			System.out.println("Table created");
+			
+			StringBuilder statementString = new StringBuilder();
+			
+			statementString.append("CREATE TABLE ");
+			statementString.append(table.getName());
+			statementString.append("(\n");
+			
+			table.forEach(tableVar -> {
+				statementString.append(tableVar.toString());
+				statementString.append(",\n");
+			});
+			
+			statementString.append("\n)\n");
+			
+			PreparedStatement statement = database.runStatement(statementString.toString());
+			statement.execute();
+			statement.close();
+		} 
+		catch (SQLException e)
+		{
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+	
 	
 	static
 	{
+		UserAccountDatabase.init();
+		PostDatabase.init();
+		
+		tableNameMap.forEach((name, table) -> {
+			addTableIfAbsent(table);
+		});
+		
 		try
 		{
 			sqlDatabase = new SQLDatabase("./sqldb/mydb");
@@ -54,7 +201,7 @@ public class CS1200API
 		} 
 		catch (SQLException e)
 		{
-			
+			doError(e, "");
 		}
 	}
 	
@@ -84,6 +231,14 @@ public class CS1200API
 		}
 	}
 	
+	static class Post
+	{
+		String username, text, aiText;
+		int agreeResponses, disagreeResponses;
+		long creationTimestamp;
+		
+	}
+	
 	static final class Sessions 
 	{
 	    private static final SecureRandom RNG = new SecureRandom();
@@ -96,9 +251,24 @@ public class CS1200API
 	    }
 	}
 	
+	static class PostDatabase
+	{
+		static void init()
+		{
+			tableNameMap.put("posts", new Table("posts", 
+					new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
+					new TableVar("text", "TEXT(400)"), 
+					new TableVar("ai_text", "TEXT(400)"), 
+					new TableVar("agree_responses", "INT(255)", "DEFAULT", "0"),
+					new TableVar("disagree_responses", "INT(255)", "DEFAULT", "0"),
+					new TableVar("creation_timestamp", "BIGINT(255)", "NOT", "NULL"), 
+					new TableVar("created_at", "TIMESTAMP", "DEFAULT", "CURRENT_TIMESTAMP")
+					));
+		}
+	}
+	
 	static class UserAccountDatabase
 	{
-		static HashMap<String, Table> tableNameMap = new HashMap<>();
 		
 		static void init()
 		{
@@ -111,150 +281,7 @@ public class CS1200API
 					new TableVar("session_timestamp", "BIGINT(255)", "NOT", "NULL"), 
 					new TableVar("is_admin", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
 					new TableVar("is_verified", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
-					new TableVar("created_at", "TIMESTAMP", "DEFAULT", "CURRENT_TIMESTAMP"
-			)));
-			
-			tableNameMap.forEach((name, table) -> {
-				addTableIfAbsent(table);
-			});
-		}
-		
-		static class Table
-		{
-			private String name;
-			private HashMap<String, TableVar> tableVarNameMap;
-			private TableVar[] tableVars;
-			public Table(String name, TableVar... tableVars)
-			{
-				this.name = name;
-				this.tableVars = tableVars;
-				
-				tableVarNameMap = new HashMap<>();
-				
-				for(TableVar tableVar : tableVars)
-					tableVarNameMap.put(tableVar.getName(), tableVar);
-			}
-			
-			public String getName()
-			{
-				return name;
-			}
-			
-			public TableVar getTableVar(int index)
-			{
-				return tableVars[index];
-			}
-			
-			public TableVar getTableVar(String name)
-			{
-				return tableVarNameMap.get(name);
-			}
-			
-			public void forEach(Consumer<TableVar> func)
-			{
-				for(TableVar tableVar : tableVars)
-					func.accept(tableVar);
-			}
-			
-			public TableVar[] getTableVars()
-			{
-				return tableVars;
-			}
-		}
-		
-		static class TableVar
-		{
-			private String name, type, modifiers[];
-			
-			public TableVar(String name, String type, String... modifiers)
-			{
-				this.name = name;
-				this.type = type;
-				this.modifiers = modifiers.clone();
-			}
-			
-			public String getName()
-			{
-				return name;
-			}
-			
-			public String toString()
-			{
-				StringBuilder result = new StringBuilder();
-				
-				result.append(name);
-				result.append(" ");
-				result.append(type);
-				result.append(" ");
-				
-				for(String modifier : modifiers)
-				{
-					result.append(modifier);
-					result.append(" ");
-				}
-				
-				return result.toString().trim();
-			}
-		}
-		
-		static void addTableIfAbsent(Table table)
-		{
-			try
-			{
-				System.out.println("Table created");
-				
-				StringBuilder statementString = new StringBuilder();
-				
-				statementString.append("CREATE TABLE IF NOT EXISTS ");
-				statementString.append(table.getName());
-				statementString.append("(\n");
-				
-				table.forEach(tableVar -> {
-					statementString.append(tableVar.toString());
-					statementString.append(",\n");
-				});
-				
-				statementString.append("\n)\n");
-				
-				PreparedStatement statement = database.runStatement(statementString.toString());
-				statement.execute();
-				statement.close();
-			} 
-			catch (SQLException e)
-			{
-				e.printStackTrace();
-				System.exit(1);
-			}
-		}
-		
-		static void addTable(Table table)
-		{
-			try
-			{
-				System.out.println("Table created");
-				
-				StringBuilder statementString = new StringBuilder();
-				
-				statementString.append("CREATE TABLE ");
-				statementString.append(table.getName());
-				statementString.append("(\n");
-				
-				table.forEach(tableVar -> {
-					statementString.append(tableVar.toString());
-					statementString.append(",\n");
-				});
-				
-				statementString.append("\n)\n");
-				
-				PreparedStatement statement = database.runStatement(statementString.toString());
-				statement.execute();
-				statement.close();
-			} 
-			catch (SQLException e)
-			{
-				e.printStackTrace();
-				System.exit(1);
-			}
+					new TableVar("created_at", "TIMESTAMP", "NOT", "NULL", "DEFAULT", "CURRENT_TIMESTAMP")));
 		}
 		
 		static boolean addNewUserAccount(UserAccount account)
@@ -264,7 +291,7 @@ public class CS1200API
 				String insert = "INSERT INTO users (username, password_hash, email, is_admin, is_verified, session_id, session_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)";
 	            
 				account.session_id = Sessions.newSessionId();
-				account.session_timestamp = Instant.now().toEpochMilli();
+				account.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
 				account.isVerified = false;
 				
 				PreparedStatement statement = database.runStatement(insert);
@@ -287,6 +314,29 @@ public class CS1200API
 			return true;
 		}
 		
+		static void resetSession(UserAccount user, boolean resetToken)
+		{
+			try
+			{
+				String update = "UPDATE accounts SET session_id = ?, session_timestamp = ? WHERE username = ?";
+			
+				if(resetToken)
+					user.session_id = Sessions.newSessionId();
+				user.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
+			
+				PreparedStatement statement = database.runStatement(update);
+				statement.setString(1, user.session_id);
+				statement.setLong(2, user.session_timestamp);
+				statement.setString(3, user.username);
+				statement.executeUpdate();
+				statement.close();
+			} 
+			catch (SQLException e)
+			{
+				doError(e, "while reseting user session token");
+			}
+		}
+		
 		static UserAccount getUserAccount(String username)
 		{
 			try
@@ -307,7 +357,62 @@ public class CS1200API
 			} 
 			catch (Exception e)
 			{
-				JOptionPane.showMessageDialog(null, "Exception caught when getting user account - " + e.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
+				doError(e, "while getting user from database \"username\" query");
+			}
+			
+			return null;
+		}
+		
+		public static void updateUser(String username, UserAccount user)
+		{
+			try
+			{
+				String update = "UPDATE accounts SET username = ?, password_hash = ?, email = ?, is_admin = ?, is_verified = ?, session_id = ?, session_timestamp = ? WHERE username = ?";
+				
+				
+				PreparedStatement statement = database.runStatement(update);
+				statement.setString(1, user.username);
+				statement.setString(2, user.password);
+				statement.setString(3, user.email);
+				statement.setBoolean(4, user.isAdmin);
+				statement.setBoolean(5, user.isVerified);
+				statement.setString(6, user.session_id);
+				statement.setLong(7, user.session_timestamp);
+				statement.setString(8, username);
+				statement.executeUpdate();
+				statement.close();
+			} 
+			catch (SQLException e)
+			{
+				doError(e, "while updating user account");
+			}
+		}
+
+		public static UserAccount getUserAccountBySession(String session_id)
+		{
+			String sql = "SELECT * FROM users WHERE session_id = ?";
+
+			try(PreparedStatement stmt = database.runStatement(sql))
+			{
+				stmt.setString(1, session_id);
+				ResultSet rs = stmt.executeQuery();
+				
+				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
+				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
+				
+				if(user.session_timestamp <= Instant.now().toEpochMilli())
+				{
+					rs.close();
+					return null;
+				}
+				
+				rs.close();
+				stmt.close();
+				return user;
+			} 
+			catch (Exception e)
+			{
+				doError(e, "while getting user from database \"session\" query");
 			}
 			
 			return null;
@@ -315,6 +420,11 @@ public class CS1200API
 	}
 	
 	static HashMap<Integer, String> verificationCodes = new HashMap<>();
+	
+	public static void doError(Exception e, String context)
+	{
+		JOptionPane.showMessageDialog(null, e.getClass().getCanonicalName() + " caught error " + context + " - " + e.getMessage(), e.getClass().getCanonicalName(), JOptionPane.ERROR_MESSAGE);
+	}
 	
 	@SuppressWarnings("resource")
 	public static void main(String[] args) throws IOException, InterruptedException, SQLException
@@ -330,6 +440,54 @@ public class CS1200API
 		server.setExecutor(Executors.newFixedThreadPool(10));
 		
 		server.createContext("/", new MyHandler("api.html"));
+		server.createContext("/api/post/create", new APIHandler() {
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				try
+				{
+					String session_id = JSON.getString("session-id");
+					String postContent = JSON.getString("post-content");
+					
+					UserAccount user = UserAccountDatabase.getUserAccountBySession(session_id);
+					
+					if(session_id == null)
+						user = null;
+					
+					JSONObject response = new JSONObject();
+					
+					if(user == null)
+					{
+						response.put("response", 200);
+						response.put("successful", false);
+						response.put("response-text", "Expired Session ID");
+						
+						return response;
+					}
+					
+					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will get a question and output a pros and cons list of the pros and cons of agreeing to that question. You must keep your response under 200 characters", postContent);
+					
+					
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("successfull", false);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
+			}
+			
+		});
 		server.createContext("/api/accounts/signin", new APIHandler() {
 
 			public JSONObject handleAPICall(JSONObject JSON)
@@ -349,6 +507,7 @@ public class CS1200API
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
+					response.put("successful", true);
 					response.put("response-text", "Account successfully Created");
 					response.put("account", user.session_id);
 					System.out.println(response.toString());
@@ -359,6 +518,46 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
+					response.put("response-text", "Bad request");
+					
+					System.out.println(response.toString());
+					
+					return response;
+				}
+			}
+			
+		});
+		server.createContext("/api/accounts/signout", new APIHandler() {
+
+			public JSONObject handleAPICall(JSONObject JSON)
+			{
+				if(JSON == null)
+					return nullResponse();
+				
+				try
+				{
+					String session_id = JSON.getString("session-id");
+					
+					UserAccount user = UserAccountDatabase.getUserAccountBySession(session_id);
+					
+					user.session_id = null;
+					user.session_timestamp = 0;
+					
+					JSONObject response = new JSONObject();
+					response.put("response", 200);
+					response.put("successful", true);
+					response.put("response-text", "Account successfully logged out");
+					response.put("account", "null");
+					System.out.println(response.toString());
+					
+					return response;
+				} 
+				catch (JSONException e)
+				{
+					JSONObject response = new JSONObject();
+					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
@@ -390,18 +589,15 @@ public class CS1200API
 					if(emailStored != null && emailStored.equals(email))
 					{
 						response.put("response", 200);
-						response.put("response-text", "Password successfully changed");
 						response.put("successful", true);
+						response.put("response-text", "Password successfully changed");
 					}
 					else 
 					{
 						response.put("response", 200);
-						response.put("response-text", "Code is incorrect");
 						response.put("successful", false);
+						response.put("response-text", "Code is incorrect");
 					}
-					
-					
-					
 					
 					System.out.println(response.toString());
 					
@@ -411,6 +607,7 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
@@ -435,8 +632,8 @@ public class CS1200API
 					{
 						JSONObject response = new JSONObject();
 						response.put("response", 200);
-						response.put("response-text", "Account does not exist");
 						response.put("successful", false);
+						response.put("response-text", "Account does not exist");
 						return response;
 					}
 					
@@ -449,8 +646,8 @@ public class CS1200API
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
-					response.put("response-text", "Code sent");
 					response.put("successful", true);
+					response.put("response-text", "Code sent");
 					
 					System.out.println(response.toString());
 					
@@ -460,10 +657,12 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
 					
+
 					return response;
 				}
 			}
@@ -475,24 +674,69 @@ public class CS1200API
 			{
 				if(JSON == null)
 					return nullResponse();
+				String session_id = null;
+				try 
+				{
+					session_id = JSON.getString("session-id");
+				}
+				catch(Exception e) {}
 				
 				try
 				{
-					String username = JSON.getString("username");
-					String password = JSON.getString("password");
+					String username, password_hash;
+					UserAccount user;
+					
+					if(session_id == null)
+					{
+						username = JSON.getString("username");
+						password_hash = hashPassword(JSON.getString("password"));
+						user = UserAccountDatabase.getUserAccount(username);
+						
+						if(!user.password.equals(password_hash))
+							user = null;
+					}
+					else 
+					{
+						user = UserAccountDatabase.getUserAccountBySession(session_id);
+						if(user != null)
+							UserAccountDatabase.resetSession(user, false);
+					}
+					
 					
 					JSONObject response = new JSONObject();
-					response.put("response", 200);
-					response.put("response-text", "Account successfully Created");
-					response.put("account", username + "-" + password);
-					System.out.println(response.toString());
-					
+					if(user != null)
+					{
+						UserAccountDatabase.resetSession(user, true);
+						
+						response.put("response", 200);
+						response.put("successful", true);
+						response.put("response-text", "Login Successful");
+						response.put("account", user.session_id);
+						System.out.println(response.toString());
+					}
+					else if(session_id != null)
+					{
+						response.put("response", 200);
+						response.put("successful", false);
+						response.put("response-text", "Login Unsuccessful Expired Session ID");
+						response.put("account", "null");
+						System.out.println(response.toString());
+					}
+					else
+					{
+						response.put("response", 200);
+						response.put("successful", false);
+						response.put("response-text", "Login Unsuccessful Invalid Credentials");
+						response.put("account", "null");
+						System.out.println(response.toString());
+					}
 					return response;
 				} 
 				catch (JSONException e)
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
@@ -518,6 +762,7 @@ public class CS1200API
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
+					response.put("successful", true);
 					response.put("response-text", "OpenAI response successfully accessed");
 					response.put("ai-text", aiText);
 					
@@ -529,6 +774,7 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
@@ -549,12 +795,22 @@ public class CS1200API
 				{
 					int quantity = JSON.getInt("quantity");
 					
+					String[] statements = new String[quantity];
+					
 					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will generate x number of random statements. The user will give their response as: \"Generate x statements\" and you will respond with that number of statements seperated by a ` character.", "Generate " + quantity + " statements");
+					
+					String[] temp = aiText.split("`", quantity);
+					for(int i = 0; i < quantity; i++)
+						if(i < temp.length)
+							statements[i] = temp[i];
 					
 					JSONObject response = new JSONObject();
 					response.put("response", 200);
+					response.put("successful", true);
 					response.put("response-text", "OpenAI response successfully accessed");
-					response.put("ai-text", aiText);
+					
+					for(int i = 0; i < quantity; i++)
+						response.put("ai-text-" + (i+1), statements[i]);
 					
 					System.out.println(response.toString());
 					
@@ -564,6 +820,7 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
