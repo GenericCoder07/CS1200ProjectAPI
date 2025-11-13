@@ -24,8 +24,9 @@ public class ServerManager extends JFrame {
     private final JTextField fSessionId  = new JTextField(24);
     private final JCheckBox  fIsAdmin    = new JCheckBox("is_admin");
     private final JCheckBox  fIsVerified = new JCheckBox("is_verified");
-    private final JButton    btnInsert   = new JButton("Insert User");
-    private final JButton    btnUpdate   = new JButton("Update User");
+    private final JButton    btnInsert   = new JButton("Insert Entry");
+    private final JButton    btnUpdate   = new JButton("Update Entry");
+    private final JButton    btnDelete   = new JButton("Delete Entry");
     private final JButton    btnClear    = new JButton("Clear Form");
 
     private Timer timer = null;
@@ -70,6 +71,7 @@ public class ServerManager extends JFrame {
         JPanel btns = new JPanel(new FlowLayout(FlowLayout.LEFT, 6,0));
         btns.add(btnInsert);
         btns.add(btnUpdate);
+        btns.add(btnDelete);
         btns.add(btnClear);
         g.gridx=1; g.gridy=r; g.gridwidth=2; editor.add(btns, g); r++;
 
@@ -92,6 +94,7 @@ public class ServerManager extends JFrame {
 
         btnInsert.addActionListener(e -> insertUser());
         btnUpdate.addActionListener(e -> updateUser());
+        btnDelete.addActionListener(e -> removeUser());
         btnClear.addActionListener(e -> clearForm());
 
         // Timer
@@ -163,6 +166,45 @@ public class ServerManager extends JFrame {
             status(count + " tables found");
         } catch (SQLException ex) {
             error("Load tables failed: " + ex.getMessage());
+        }
+    }
+    
+    private void removeUser() {
+        // Ensure we are targeting the users table
+        String t = (String) tableCombo.getSelectedItem();
+        if (t == null || !t.equalsIgnoreCase("users")) {
+            error("Removal only supported when 'users' table is selected");
+            return;
+        }
+
+        String username = fUsername.getText().trim();
+        if (username.isEmpty()) {
+            error("Select a user row or enter a username before removing");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(
+                this,
+                "Remove user '" + username + "'?",
+                "Confirm removal",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        String sql = "DELETE FROM users WHERE username = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            int n = ps.executeUpdate();
+            if (n == 0) {
+                error("No rows deleted (user not found)");
+            } else {
+                status("Removed user: " + username);
+                clearForm();
+                refreshNow();
+            }
+        } catch (SQLException ex) {
+            error("Remove failed: " + ex.getMessage());
         }
     }
 
