@@ -139,6 +139,8 @@ public class CS1200API
 				statementString.append(",\n");
 			});
 			
+			statementString.deleteCharAt(statementString.length() - 2);
+			
 			statementString.append("\n)\n");
 			
 			PreparedStatement statement = database.runStatement(statementString.toString());
@@ -185,13 +187,6 @@ public class CS1200API
 	
 	static
 	{
-		UserAccountDatabase.init();
-		PostDatabase.init();
-		
-		tableNameMap.forEach((name, table) -> {
-			addTableIfAbsent(table);
-		});
-		
 		try
 		{
 			sqlDatabase = new SQLDatabase("./sqldb/mydb");
@@ -203,6 +198,13 @@ public class CS1200API
 		{
 			doError(e, "");
 		}
+		
+		UserAccountDatabase.init();
+		PostDatabase.init();
+		
+		tableNameMap.forEach((name, table) -> {
+			addTableIfAbsent(table);
+		});
 	}
 	
 	static class UserAccount
@@ -257,11 +259,11 @@ public class CS1200API
 		{
 			tableNameMap.put("posts", new Table("posts", 
 					new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
-					new TableVar("text", "TEXT(400)"), 
-					new TableVar("ai_text", "TEXT(400)"), 
-					new TableVar("agree_responses", "INT(255)", "DEFAULT", "0"),
-					new TableVar("disagree_responses", "INT(255)", "DEFAULT", "0"),
-					new TableVar("creation_timestamp", "BIGINT(255)", "NOT", "NULL"), 
+					new TableVar("text", "VARCHAR(1000)", "NOT", "NULL"), 
+					new TableVar("ai_text", "VARCHAR(1000)", "NOT", "NULL"), 
+					new TableVar("agree_responses", "INT", "DEFAULT", "0"),
+					new TableVar("disagree_responses", "INT", "DEFAULT", "0"),
+					new TableVar("creation_timestamp", "BIGINT", "NOT", "NULL"), 
 					new TableVar("created_at", "TIMESTAMP", "DEFAULT", "CURRENT_TIMESTAMP")
 					));
 		}
@@ -278,7 +280,7 @@ public class CS1200API
 					new TableVar("password_hash", "VARCHAR(255)", "NOT", "NULL"), 
 					new TableVar("email", "VARCHAR(255)", "NOT", "NULL", "UNIQUE"), 
 					new TableVar("session_id", "VARCHAR(255)", "UNIQUE"), 
-					new TableVar("session_timestamp", "BIGINT(255)", "NOT", "NULL"), 
+					new TableVar("session_timestamp", "BIGINT", "NOT", "NULL"), 
 					new TableVar("is_admin", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
 					new TableVar("is_verified", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
 					new TableVar("created_at", "TIMESTAMP", "NOT", "NULL", "DEFAULT", "CURRENT_TIMESTAMP")));
