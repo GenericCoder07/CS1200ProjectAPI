@@ -1,3 +1,4 @@
+package api;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
@@ -11,16 +12,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.security.SecureRandom;
 import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Random;
 import java.util.concurrent.Executors;
-import java.util.function.Consumer;
 
 import javax.swing.JOptionPane;
 
@@ -36,91 +32,19 @@ import com.sun.net.httpserver.HttpServer;
 import java_sql_lib_raymond.Database;
 import java_sql_lib_raymond.SQLDatabase;
 import java_sql_lib_raymond.SupabaseDatabase;
+import java_sql_lib_raymond.Table;
+import password_hash_raymond.Hasher;
+import password_hash_raymond.Password4jHasher;
+import post_database.PostDatabase;
+import user_database.UserAccount;
+import user_database.UserAccountDatabase;
 
+@SuppressWarnings("unused")
 public class CS1200API
 {
-	static SQLDatabase sqlDatabase;
-	static SupabaseDatabase supabaseDatabase;
-	static Database database;
-	static HashMap<String, Table> tableNameMap = new HashMap<>();
-	
-	static class Table
-	{
-		private String name;
-		private HashMap<String, TableVar> tableVarNameMap;
-		private TableVar[] tableVars;
-		public Table(String name, TableVar... tableVars)
-		{
-			this.name = name;
-			this.tableVars = tableVars;
-			
-			tableVarNameMap = new HashMap<>();
-			
-			for(TableVar tableVar : tableVars)
-				tableVarNameMap.put(tableVar.getName(), tableVar);
-		}
-		
-		public String getName()
-		{
-			return name;
-		}
-		
-		public TableVar getTableVar(int index)
-		{
-			return tableVars[index];
-		}
-		
-		public TableVar getTableVar(String name)
-		{
-			return tableVarNameMap.get(name);
-		}
-		
-		public void forEach(Consumer<TableVar> func)
-		{
-			for(TableVar tableVar : tableVars)
-				func.accept(tableVar);
-		}
-		
-		public TableVar[] getTableVars()
-		{
-			return tableVars;
-		}
-	}
-	
-	static class TableVar
-	{
-		private String name, type, modifiers[];
-		
-		public TableVar(String name, String type, String... modifiers)
-		{
-			this.name = name;
-			this.type = type;
-			this.modifiers = modifiers.clone();
-		}
-		
-		public String getName()
-		{
-			return name;
-		}
-		
-		public String toString()
-		{
-			StringBuilder result = new StringBuilder();
-			
-			result.append(name);
-			result.append(" ");
-			result.append(type);
-			result.append(" ");
-			
-			for(String modifier : modifiers)
-			{
-				result.append(modifier);
-				result.append(" ");
-			}
-			
-			return result.toString().trim();
-		}
-	}
+	public static Database database;
+	public static HashMap<String, Table> tableNameMap = new HashMap<>();
+	public static Hasher passwordHasher;
 	
 	static void addTableIfAbsent(Table table)
 	{
@@ -187,13 +111,16 @@ public class CS1200API
 	
 	static
 	{
-		
 		try
 		{
-			sqlDatabase = new SQLDatabase("./sqldb/mydb");
-			supabaseDatabase = new SupabaseDatabase();
+			SQLDatabase sqlDatabase = new SQLDatabase("./sqldb/mydb");
+			SupabaseDatabase supabaseDatabase = new SupabaseDatabase();
 			
 			database = sqlDatabase;
+			
+			Password4jHasher password4j = new Password4jHasher();
+			
+			passwordHasher = password4j;
 		} 
 		catch (SQLException e)
 		{
@@ -207,231 +134,6 @@ public class CS1200API
 			addTableIfAbsent(table);
 		});
 		
-	}
-	
-	static class UserAccount
-	{
-		String username;
-		String password;
-		String email;
-		String session_id;
-		long session_timestamp;
-		boolean isAdmin;
-		boolean isVerified;
-		
-		public UserAccount(String username, String password, String email, boolean isAdmin)
-		{
-			this.username = username;
-			this.password = password;
-			this.email = email;
-			this.isAdmin = isAdmin;
-		}
-		
-		protected void setSystemVars(String session_id, long session_timestamp, boolean isVerified)
-		{
-			this.session_id = session_id;
-			this.session_timestamp = session_timestamp;
-			this.isVerified = isVerified;
-		}
-	}
-	
-	static class Post
-	{
-		String username, text, aiText;
-		int agreeResponses, disagreeResponses;
-		long creationTimestamp;
-		
-	}
-	
-	static final class Sessions 
-	{
-	    private static final SecureRandom RNG = new SecureRandom();
-
-	    public static String newSessionId() 
-	    {
-	    	byte[] buf = new byte[32];
-	    	RNG.nextBytes(buf);
-	    	return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
-	    }
-	}
-	
-	static class PostDatabase
-	{
-		static void init()
-		{
-			tableNameMap.put("posts", new Table("posts", 
-					new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
-					new TableVar("text", "VARCHAR(1000)", "NOT", "NULL"), 
-					new TableVar("ai_text", "VARCHAR(1000)", "NOT", "NULL"), 
-					new TableVar("agree_responses", "INT", "DEFAULT", "0"),
-					new TableVar("disagree_responses", "INT", "DEFAULT", "0"),
-					new TableVar("creation_timestamp", "BIGINT", "NOT", "NULL"), 
-					new TableVar("created_at", "TIMESTAMP", "DEFAULT", "CURRENT_TIMESTAMP")
-					));
-		}
-	}
-	
-	static class UserAccountDatabase
-	{
-		
-		static void init()
-		{
-			tableNameMap.put("users", new Table("users", 
-					new TableVar("id", "IDENTITY", "PRIMARY", "KEY"), 
-					new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
-					new TableVar("password_hash", "VARCHAR(255)", "NOT", "NULL"), 
-					new TableVar("email", "VARCHAR(255)", "NOT", "NULL", "UNIQUE"), 
-					new TableVar("session_id", "VARCHAR(255)", "UNIQUE"), 
-					new TableVar("session_timestamp", "BIGINT", "NOT", "NULL"), 
-					new TableVar("is_admin", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
-					new TableVar("is_verified", "BOOLEAN", "NOT", "NULL", "DEFAULT", "FALSE"), 
-					new TableVar("created_at", "TIMESTAMP", "NOT", "NULL", "DEFAULT", "CURRENT_TIMESTAMP")));
-		}
-		
-		static boolean addNewUserAccount(UserAccount account)
-		{
-			try
-			{
-				String insert = "INSERT INTO users (username, password_hash, email, is_admin, is_verified, session_id, session_timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)";
-	            
-				account.session_id = Sessions.newSessionId();
-				account.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
-				account.isVerified = false;
-				
-				PreparedStatement statement = database.runStatement(insert);
-				statement.setString(1, account.username);
-	            statement.setString(2, hashPassword(account.password));  // 🔒 see below
-	            statement.setString(3, account.email);
-	            statement.setBoolean(4, account.isAdmin);
-	            statement.setBoolean(5, account.isVerified);
-	            statement.setString(6, account.session_id);
-	            statement.setLong(7, account.session_timestamp);
-	            statement.executeUpdate();
-				statement.close();
-			} 
-			catch (SQLException e)
-			{
-				e.printStackTrace();
-				System.exit(1);
-			}
-			
-			return true;
-		}
-		
-		static void resetSession(UserAccount user, boolean resetToken)
-		{
-			try
-			{
-				String update = "UPDATE users SET session_id = ?, session_timestamp = ? WHERE username = ?";
-				
-				System.out.println("reset token?: " + resetToken + "\nuser pre session_id:" + user.session_id);
-				if(resetToken)
-					user.session_id = Sessions.newSessionId();
-				user.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
-				System.out.println("user post session_id:" + user.session_id);
-			
-				PreparedStatement statement = database.runStatement(update);
-				statement.setString(1, user.session_id);
-				statement.setLong(2, user.session_timestamp);
-				statement.setString(3, user.username);
-				statement.executeUpdate();
-				statement.close();
-			} 
-			catch (SQLException e)
-			{
-				doError(e, "while reseting user session token");
-			}
-		}
-		
-		static UserAccount getUserAccount(String username)
-		{
-			try
-			{
-				String sql = "SELECT * FROM users WHERE username = ?";
-
-				PreparedStatement stmt = database.runStatement(sql);
-				stmt.setString(1, username);
-
-				
-				System.out.println("Before query execution");
-				ResultSet rs = stmt.executeQuery();
-				System.out.println("After query execution");
-
-				System.out.println("Result set next: " + rs.next());
-				
-				System.out.println("Before getting data");
-				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
-				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
-				System.out.println("After getting data");
-				
-				rs.close();
-				stmt.close();
-				return user;
-			} 
-			catch (Exception e)
-			{
-				doError(e, "while getting user from database \"username\" query");
-			}
-			
-			return null;
-		}
-		
-		public static void updateUser(String username, UserAccount user)
-		{
-			try
-			{
-				String update = "UPDATE accounts SET username = ?, password_hash = ?, email = ?, is_admin = ?, is_verified = ?, session_id = ?, session_timestamp = ? WHERE username = ?";
-				
-				
-				PreparedStatement statement = database.runStatement(update);
-				statement.setString(1, user.username);
-				statement.setString(2, user.password);
-				statement.setString(3, user.email);
-				statement.setBoolean(4, user.isAdmin);
-				statement.setBoolean(5, user.isVerified);
-				statement.setString(6, user.session_id);
-				statement.setLong(7, user.session_timestamp);
-				statement.setString(8, username);
-				statement.executeUpdate();
-				statement.close();
-			} 
-			catch (SQLException e)
-			{
-				doError(e, "while updating user account");
-			}
-		}
-
-		public static UserAccount getUserAccountBySession(String session_id)
-		{
-			String sql = "SELECT * FROM users WHERE session_id = ?";
-
-			try(PreparedStatement stmt = database.runStatement(sql))
-			{
-				stmt.setString(1, session_id);
-				ResultSet rs = stmt.executeQuery();
-				
-				System.out.println("Quesry next: " + rs.next());
-				
-				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
-				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
-				
-				if(user.session_timestamp <= Instant.now().toEpochMilli())
-				{
-					rs.close();
-					return null;
-				}
-				
-				rs.close();
-				stmt.close();
-				return user;
-			} 
-			catch (Exception e)
-			{
-				doError(e, "while getting user from database \"session\" query");
-			}
-			
-			return null;
-		}
 	}
 	
 	static HashMap<Integer, String> verificationCodes = new HashMap<>();
@@ -889,6 +591,7 @@ public class CS1200API
         }
 	}
 	
+	@SuppressWarnings("resource")
 	protected static String sendChatGPTAPIRequest(String prompt, String input)
 	{
 		String apiKeyString = loadApiKey();
