@@ -28,6 +28,8 @@ public class ServerManager extends JFrame {
     private final JButton    btnUpdate   = new JButton("Update Entry");
     private final JButton    btnDelete   = new JButton("Delete Entry");
     private final JButton    btnClear    = new JButton("Clear Form");
+    private final JButton btnClearDb = new JButton("CLEAR DATABASE");
+
 
     private Timer timer = null;
     private Connection conn;
@@ -43,6 +45,8 @@ public class ServerManager extends JFrame {
         top.add(tableCombo);
         top.add(refreshBtn);
         top.add(autoRefresh);
+        top.add(btnClearDb);
+
         add(top, BorderLayout.NORTH);
 
         // Center split: table (top) + user editor (bottom)
@@ -96,6 +100,7 @@ public class ServerManager extends JFrame {
         btnUpdate.addActionListener(e -> updateUser());
         btnDelete.addActionListener(e -> removeUser());
         btnClear.addActionListener(e -> clearForm());
+        btnClearDb.addActionListener(e -> confirmThenClearDatabase());
 
         // Timer
         timer = new Timer(1500, e -> refreshNow());
@@ -120,6 +125,7 @@ public class ServerManager extends JFrame {
 
     private void connect() {
         try {
+        	System.out.println("Attempting to connect server manager");
             conn = DriverManager.getConnection(JDBC_URL, DB_USER, DB_PASS);
             status("Connected: " + JDBC_URL);
         } catch (Exception ex) {
@@ -168,6 +174,102 @@ public class ServerManager extends JFrame {
             error("Load tables failed: " + ex.getMessage());
         }
     }
+    
+    private void confirmThenClearDatabase() {
+        // First confirmation
+        int c1 = JOptionPane.showConfirmDialog(
+                this,
+                "This will ERASE ALL TABLES and data in the current database.\nAre you absolutely sure?",
+                "Confirm Clear Database",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE
+        );
+        if (c1 != JOptionPane.YES_OPTION) return;
+
+        // Second confirmation
+        int c2 = JOptionPane.showConfirmDialog(
+                this,
+                "Last chance: This action is IRREVERSIBLE.\nProceed to CLEAR DATABASE?",
+                "Confirm Again",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.ERROR_MESSAGE
+        );
+        if (c2 != JOptionPane.YES_OPTION) return;
+
+        // Pause auto-refresh to avoid race conditions while dropping objects
+        boolean wasAuto = autoRefresh.isSelected();
+        if (wasAuto) timer.stop();
+
+        try {
+            clearDatabase();
+            status("Database cleared successfully");
+            // Reload table list and UI
+            loadTables();
+            selectUsersIfPresent();
+            refreshNow();
+            clearForm();
+        } catch (Exception ex) {
+            error("Clear failed: " + ex.getMessage());
+        } finally {
+            if (wasAuto && autoRefresh.isSelected()) timer.start();
+        }
+    }
+
+    /** Clears all objects depending on the DB vendor (H2 vs PostgreSQL/Supabase). */
+    private void clearDatabase() throws SQLException {
+        if (conn == null || conn.isClosed()) throw new SQLException("No DB connection");
+
+        String product = conn.getMetaData().getDatabaseProductName();
+        // Use a transaction where sensible
+        boolean oldAuto = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try (Statement st = conn.createStatement()) {
+            if (product != null && product.toLowerCase().contains("postgresql")) {
+                // Supabase / PostgreSQL: drop the public schema and recreate it
+                st.executeUpdate("DROP SCHEMA IF EXISTS public CASCADE");
+                st.executeUpdate("CREATE SCHEMA public");
+                // optional: restore default grants if needed
+                st.executeUpdate("GRANT ALL ON SCHEMA public TO public");
+            } else if (product != null && product.toLowerCase().contains("h2")) {
+                // H2: drop all objects in the database (keeps the file)
+                st.executeUpdate("DROP ALL OBJECTS");
+                // If you truly want to delete DB files too, use:
+                // st.executeUpdate("DROP ALL OBJECTS DELETE FILES");
+            } else {
+                // Generic fallback: enumerate and drop tables in INFORMATION_SCHEMA
+                dropAllTablesPortable(st);
+            }
+            conn.commit();
+        } catch (SQLException ex) {
+            conn.rollback();
+            throw ex;
+        } finally {
+            conn.setAutoCommit(oldAuto);
+        }
+    }
+
+    /** Portable fallback: drop all user tables in the PUBLIC schema. */
+    private void dropAllTablesPortable(Statement st) throws SQLException {
+        // Collect table names
+        try (ResultSet rs = st.executeQuery("""
+            SELECT TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_SCHEMA = 'PUBLIC'
+        """)) {
+            java.util.List<String> names = new java.util.ArrayList<>();
+            while (rs.next()) names.add(rs.getString(1));
+            // Disable FKs if supported (H2 supports this; ignored elsewhere)
+            try { st.execute("SET REFERENTIAL_INTEGRITY FALSE"); } catch (SQLException ignored) {}
+
+            for (String t : names) {
+                String q = "\"" + t.replace("\"", "\"\"") + "\"";
+                try { st.executeUpdate("DROP TABLE " + q + " CASCADE"); }
+                catch (SQLException e) { /* attempt next; some objects may block */ }
+            }
+            try { st.execute("SET REFERENTIAL_INTEGRITY TRUE"); } catch (SQLException ignored) {}
+        }
+    }
+
     
     private void removeUser() {
         // Ensure we are targeting the users table
