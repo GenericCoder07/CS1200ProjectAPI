@@ -3,17 +3,26 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.util.HashMap;
 
-import api.CS1200API;
+import javax.swing.JOptionPane;
+
+import java_sql_lib_raymond.Database;
 import java_sql_lib_raymond.Table;
 import java_sql_lib_raymond.TableVar;
+import password_hash_raymond.Hasher;
 
 public class UserAccountDatabase
 {
+	static Database database;
+	static Hasher hasher;
 
-	public static void init()
+	public static void init(Hasher hash, Database db, HashMap<String, Table> tableNameMap)
 	{
-		CS1200API.tableNameMap.put("users", new Table("users", 
+		database = db;
+		hasher = hash;
+		
+		tableNameMap.put("users", new Table("users", 
 				new TableVar("id", "IDENTITY", "PRIMARY", "KEY"), 
 				new TableVar("username", "VARCHAR(100)", "NOT", "NULL", "UNIQUE"), 
 				new TableVar("password_hash", "VARCHAR(255)", "NOT", "NULL"), 
@@ -35,9 +44,9 @@ public class UserAccountDatabase
 			account.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
 			account.isVerified = false;
 
-			PreparedStatement statement = CS1200API.database.runStatement(insert);
+			PreparedStatement statement = database.runStatement(insert);
 			statement.setString(1, account.username);
-			statement.setString(2, CS1200API.passwordHasher.hashPassword(account.password));  // 🔒 see below
+			statement.setString(2, hasher.hashPassword(account.password));
 			statement.setString(3, account.email);
 			statement.setBoolean(4, account.isAdmin);
 			statement.setBoolean(5, account.isVerified);
@@ -48,8 +57,7 @@ public class UserAccountDatabase
 		} 
 		catch (SQLException e)
 		{
-			e.printStackTrace();
-			System.exit(1);
+			doError(e, "While adding a new user account");
 		}
 
 		return true;
@@ -67,7 +75,7 @@ public class UserAccountDatabase
 			user.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
 			System.out.println("user post session_id:" + user.session_id);
 
-			PreparedStatement statement = CS1200API.database.runStatement(update);
+			PreparedStatement statement = database.runStatement(update);
 			statement.setString(1, user.session_id);
 			statement.setLong(2, user.session_timestamp);
 			statement.setString(3, user.username);
@@ -76,7 +84,7 @@ public class UserAccountDatabase
 		} 
 		catch (SQLException e)
 		{
-			CS1200API.doError(e, "while reseting user session token");
+			doError(e, "while reseting user session token");
 		}
 	}
 
@@ -86,7 +94,7 @@ public class UserAccountDatabase
 		{
 			String sql = "SELECT * FROM users WHERE username = ?";
 
-			PreparedStatement stmt = CS1200API.database.runStatement(sql);
+			PreparedStatement stmt = database.runStatement(sql);
 			stmt.setString(1, username);
 
 
@@ -94,7 +102,15 @@ public class UserAccountDatabase
 			ResultSet rs = stmt.executeQuery();
 			System.out.println("After query execution");
 
-			System.out.println("Result set next: " + rs.next());
+			boolean hasNext = rs.next();
+			
+			if(!hasNext)
+			{
+				System.out.println("No account found");
+				rs.close();
+				stmt.close();
+				return null;
+			}
 
 			System.out.println("Before getting data");
 			UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
@@ -107,7 +123,7 @@ public class UserAccountDatabase
 		} 
 		catch (Exception e)
 		{
-			CS1200API.doError(e, "while getting user from database \"username\" query");
+			doError(e, "while getting user from database \"username\" query");
 		}
 
 		return null;
@@ -117,10 +133,10 @@ public class UserAccountDatabase
 	{
 		try
 		{
-			String update = "UPDATE accounts SET username = ?, password_hash = ?, email = ?, is_admin = ?, is_verified = ?, session_id = ?, session_timestamp = ? WHERE username = ?";
+			String update = "UPDATE users SET username = ?, password_hash = ?, email = ?, is_admin = ?, is_verified = ?, session_id = ?, session_timestamp = ? WHERE username = ?";
 
 
-			PreparedStatement statement = CS1200API.database.runStatement(update);
+			PreparedStatement statement = database.runStatement(update);
 			statement.setString(1, user.username);
 			statement.setString(2, user.password);
 			statement.setString(3, user.email);
@@ -134,7 +150,7 @@ public class UserAccountDatabase
 		} 
 		catch (SQLException e)
 		{
-			CS1200API.doError(e, "while updating user account");
+			doError(e, "while updating user account");
 		}
 	}
 
@@ -142,7 +158,7 @@ public class UserAccountDatabase
 	{
 		String sql = "SELECT * FROM users WHERE session_id = ?";
 
-		try(PreparedStatement stmt = CS1200API.database.runStatement(sql))
+		try(PreparedStatement stmt = database.runStatement(sql))
 		{
 			stmt.setString(1, session_id);
 			ResultSet rs = stmt.executeQuery();
@@ -168,9 +184,23 @@ public class UserAccountDatabase
 		} 
 		catch (Exception e)
 		{
-			CS1200API.doError(e, "while getting user from database \"session\" query");
+			doError(e, "while getting user from database \"session\" query");
 		}
 
 		return null;
 	}
+	
+	public static void doError(Exception e, String context)
+	{
+		Thread errorThread = new Thread(new Runnable() {
+
+			public void run()
+			{
+				JOptionPane.showMessageDialog(null, e.getClass().getCanonicalName() + " caught error " + context + " - " + e.getMessage(), e.getClass().getCanonicalName(), JOptionPane.ERROR_MESSAGE);
+			}
+		});
+
+		errorThread.start();
+	}
+
 }
