@@ -23,6 +23,7 @@ public class ServerManager extends JFrame {
     private final JTextField fPassword   = new JTextField(16);
     private final JTextField fEmail      = new JTextField(20);
     private final JTextField fSessionId  = new JTextField(24);
+    private final JTextField fSessionTime  = new JTextField(24);
     private final JCheckBox  fIsAdmin    = new JCheckBox("is_admin");
     private final JCheckBox  fIsVerified = new JCheckBox("is_verified");
     private final JButton    btnInsert   = new JButton("Insert Entry");
@@ -69,6 +70,10 @@ public class ServerManager extends JFrame {
         addRow(editor, g, r++, "password", fPassword);
         addRow(editor, g, r++, "email",    fEmail);
         addRow(editor, g, r++, "session_id", fSessionId);
+        addRow(editor, g, r++, "session_timestamp", fSessionTime);
+        
+        fSessionId.setEditable(false);
+        fSessionTime.setEditable(false);
 
         g.gridx=1; g.gridy=r; editor.add(fIsAdmin, g);
         g.gridx=2; editor.add(fIsVerified, g); r++;
@@ -108,7 +113,6 @@ public class ServerManager extends JFrame {
 
         // DB connect + ensure users table + load tables
         connect();
-        ensureUsersTable();
         loadTables();
         selectUsersIfPresent();
         refreshNow();
@@ -134,26 +138,7 @@ public class ServerManager extends JFrame {
         }
     }
 
-    private void ensureUsersTable() {
-        // Create a simple users table with 6 fields; username is the PK
-        String ddl = """
-            CREATE TABLE IF NOT EXISTS users (
-              username   VARCHAR(100) PRIMARY KEY,
-              password   VARCHAR(255),
-              email      VARCHAR(255),
-              session_id VARCHAR(255),
-              is_admin   BOOLEAN DEFAULT FALSE,
-              is_verified BOOLEAN DEFAULT FALSE
-            )
-        """;
-        try (Statement s = conn.createStatement()) {
-            s.executeUpdate(ddl);
-        } catch (SQLException ex) {
-            error("Create users table failed: " + ex.getMessage());
-        }
-        // (Optional) if you’re migrating from an older shape, you could add columns defensively here.
-    }
-
+    
     private void loadTables() {
         if (conn == null) return;
         tableCombo.removeAllItems();
@@ -350,9 +335,10 @@ public class ServerManager extends JFrame {
         DefaultTableModel m = (DefaultTableModel) table.getModel();
 
         int cUser = findCol(m, "username");
-        int cPass = findCol(m, "password");
+        int cPass = findCol(m, "password_hash");
         int cEmail= findCol(m, "email");
         int cSess = findCol(m, "session_id");
+        int cSessTime = findCol(m, "session_timestamp");
         int cAdm  = findCol(m, "is_admin");
         int cVer  = findCol(m, "is_verified");
 
@@ -360,6 +346,7 @@ public class ServerManager extends JFrame {
         fPassword.setText(val(m, row, cPass));
         fEmail.setText(val(m, row, cEmail));
         fSessionId.setText(val(m, row, cSess));
+        fSessionTime.setText(val(m, row, cSessTime));
         fIsAdmin.setSelected(boolVal(m, row, cAdm));
         fIsVerified.setSelected(boolVal(m, row, cVer));
     }
@@ -387,7 +374,7 @@ public class ServerManager extends JFrame {
         String username = fUsername.getText().trim();
         if (username.isEmpty()) { error("username is required for insert"); return; }
 
-        String sql = "INSERT INTO users (username, password, email, session_id, is_admin, is_verified) " +
+        String sql = "INSERT INTO users (username, password_hash, email, session_id, is_admin, is_verified) " +
                      "VALUES (?,?,?,?,?,?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
@@ -432,7 +419,7 @@ public class ServerManager extends JFrame {
 
         String sql = """
             UPDATE users SET
-              password=?,
+              password_hash=?,
               email=?,
               session_id=?,
               is_admin=?,
