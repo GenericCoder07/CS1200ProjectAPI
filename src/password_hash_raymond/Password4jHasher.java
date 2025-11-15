@@ -4,12 +4,12 @@ public class Password4jHasher implements Hasher
 {
 	public String hashPassword(String password)
 	{
-		return null;
+		return password;
 	}
 
 	public String verifyHash(String passwordHash)
 	{
-		return null;
+		return "";
 	}
 
 }
