@@ -158,7 +158,6 @@ public class CS1200API
 	{
 		try
 		{
-			System.out.println("Table created");
 			
 			StringBuilder statementString = new StringBuilder();
 			
@@ -176,6 +175,7 @@ public class CS1200API
 			PreparedStatement statement = database.runStatement(statementString.toString());
 			statement.execute();
 			statement.close();
+			System.out.println("Table created");
 		} 
 		catch (SQLException e)
 		{
@@ -187,6 +187,7 @@ public class CS1200API
 	
 	static
 	{
+		
 		try
 		{
 			sqlDatabase = new SQLDatabase("./sqldb/mydb");
@@ -205,6 +206,7 @@ public class CS1200API
 		tableNameMap.forEach((name, table) -> {
 			addTableIfAbsent(table);
 		});
+		
 	}
 	
 	static class UserAccount
@@ -320,11 +322,13 @@ public class CS1200API
 		{
 			try
 			{
-				String update = "UPDATE accounts SET session_id = ?, session_timestamp = ? WHERE username = ?";
-			
+				String update = "UPDATE users SET session_id = ?, session_timestamp = ? WHERE username = ?";
+				
+				System.out.println("reset token?: " + resetToken + "\nuser pre session_id:" + user.session_id);
 				if(resetToken)
 					user.session_id = Sessions.newSessionId();
 				user.session_timestamp = Instant.now().toEpochMilli() + 1800000L;
+				System.out.println("user post session_id:" + user.session_id);
 			
 				PreparedStatement statement = database.runStatement(update);
 				statement.setString(1, user.session_id);
@@ -348,10 +352,17 @@ public class CS1200API
 				PreparedStatement stmt = database.runStatement(sql);
 				stmt.setString(1, username);
 
-				ResultSet rs = stmt.executeQuery();
 				
+				System.out.println("Before query execution");
+				ResultSet rs = stmt.executeQuery();
+				System.out.println("After query execution");
+
+				System.out.println("Result set next: " + rs.next());
+				
+				System.out.println("Before getting data");
 				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
 				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
+				System.out.println("After getting data");
 				
 				rs.close();
 				stmt.close();
@@ -399,6 +410,8 @@ public class CS1200API
 				stmt.setString(1, session_id);
 				ResultSet rs = stmt.executeQuery();
 				
+				System.out.println("Quesry next: " + rs.next());
+				
 				UserAccount user = new UserAccount(rs.getString("username"), rs.getString("password_hash"), rs.getString("email"), rs.getBoolean("is_admin"));
 				user.setSystemVars(rs.getString("session_id"), rs.getLong("session_timestamp"), rs.getBoolean("is_verified"));
 				
@@ -433,7 +446,9 @@ public class CS1200API
 	{
 		loadApiKey();
 		
-		UserAccountDatabase.init();
+		//String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will generate x number of random statements. The user will give their response as: \"Generate x statements\" and you will respond with that number of statements seperated by a | character.", "Generate 4 statements");
+		//System.out.println(aiText);
+		
 		ServerManager manager = new ServerManager();
 		manager.setVisible(true);
 		
@@ -480,7 +495,7 @@ public class CS1200API
 				{
 					JSONObject response = new JSONObject();
 					response.put("response", 400);
-					response.put("successfull", false);
+					response.put("successful", false);
 					response.put("response-text", "Bad request");
 					
 					System.out.println(response.toString());
@@ -700,15 +715,13 @@ public class CS1200API
 					else 
 					{
 						user = UserAccountDatabase.getUserAccountBySession(session_id);
-						if(user != null)
-							UserAccountDatabase.resetSession(user, false);
 					}
 					
 					
 					JSONObject response = new JSONObject();
 					if(user != null)
 					{
-						UserAccountDatabase.resetSession(user, true);
+						UserAccountDatabase.resetSession(user, session_id == null);
 						
 						response.put("response", 200);
 						response.put("successful", true);
@@ -797,11 +810,14 @@ public class CS1200API
 				{
 					int quantity = JSON.getInt("quantity");
 					
+					System.out.println("got /api/ai/can request with \nquantity: " + quantity);
 					String[] statements = new String[quantity];
 					
-					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will generate x number of random statements. The user will give their response as: \"Generate x statements\" and you will respond with that number of statements seperated by a ` character.", "Generate " + quantity + " statements");
+					String aiText = sendChatGPTAPIRequest("You are a helpful assistant that will generate x number of random statements that would be posted by a user. Other users will respond with their agreements or disagreements. The user will give their response as: \"Generate x statements\" and you will respond with that number of statements seperated by a | character.", "Generate " + quantity + " statements");
 					
-					String[] temp = aiText.split("`", quantity);
+					System.out.println("ai-text generated : " + aiText);
+					
+					String[] temp = aiText.split("\\|", quantity);
 					for(int i = 0; i < quantity; i++)
 						if(i < temp.length)
 							statements[i] = temp[i];
@@ -833,7 +849,7 @@ public class CS1200API
 		});
 		
 		server.start();
-		System.out.println("Server Running");
+		System.out.println("Server Running v1.22.0");
 		Thread.currentThread().join();
 	}
 	
@@ -851,14 +867,24 @@ public class CS1200API
 	{
 		try 
 		{
-            return Files.readString(new File(new File("apikey.txt").getAbsolutePath()).toPath()).trim();
+			System.out.println("Trying file path: " + new File("apikey.txt").getAbsolutePath().replace("/src", ""));
+            return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("/src", "")).toPath()).trim();
         } 
 		catch (Exception e) 
 		{
-			JOptionPane.showMessageDialog(null, "No OpenAI API key is detected. If you continue,\n"
-											  + "the server will still run, but any request to\n"
-											  + "the /ai or /ai/can endpoints will return an error.", 
-											  "No OpenAI API Key", JOptionPane.ERROR_MESSAGE);
+			try
+			{
+				System.out.println("Trying file path: " + new File("apikey.txt").getAbsolutePath().replace("/src", "").replace("C:\\", "\\mn\\c\\"));
+	            return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("C:\\", "\\mn\\c\\")).toPath()).trim();
+			} 
+			catch (Exception e2)
+			{
+				JOptionPane.showMessageDialog(null, "No OpenAI API key is detected. If you continue,\n"
+						  + "the server will still run, but any request to\n"
+						  + "the /ai or /ai/can endpoints will return an error.", 
+						  "No OpenAI API Key", JOptionPane.ERROR_MESSAGE);
+			}
+			
         	return null;
         }
 	}
@@ -869,6 +895,8 @@ public class CS1200API
 		
 		System.out.println("API STRING KEY - " + apiKeyString);
 		
+		prompt = prompt.replace("\"", "'");
+		
 		String body =
 		        "{" + 
 		          "\"model\": \"gpt-5-nano\"," + 
@@ -877,6 +905,8 @@ public class CS1200API
 		            "{\"role\": \"user\", \"content\": \"" + input + "\"}" + 
 		          "]" + 
 		        "}";
+		
+		System.out.println(body);
 		
 		HttpRequest request = HttpRequest.newBuilder()
 		                .uri(URI.create("https://api.openai.com/v1/chat/completions"))
