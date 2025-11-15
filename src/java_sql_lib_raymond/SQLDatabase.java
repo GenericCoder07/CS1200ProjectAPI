@@ -62,7 +62,18 @@ public class SQLDatabase implements Database
 	 */
 	public SQLDatabase(String filepath, String adminUsername, String adminPassword, boolean memoryDatabase) throws SQLException
 	{
+		try {
+		    Class.forName("org.h2.Driver");
+		    System.out.println("H2 driver class loaded.");
+		} catch (ClassNotFoundException e) {
+		    System.out.println("H2 driver NOT found: " + e);
+		    e.printStackTrace();
+		}
+		
+		System.out.println("Attempting to connect to sql database");
 		connection = DriverManager.getConnection("jdbc:h2:" + (memoryDatabase ? "mem:" : "") + filepath, adminUsername, adminPassword);
+
+		System.out.println("connected to sql database");
 	}
 	
 	public PreparedStatement runStatement(String statement) throws SQLException
