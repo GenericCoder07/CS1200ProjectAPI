@@ -418,21 +418,31 @@ public class CS1200API
 		try 
 		{
 			System.out.println("Trying file path: " + new File("apikey.txt").getAbsolutePath().replace("/src", ""));
-			return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("/src", "")).toPath()).trim();
+			String readString = Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("/src", "")).toPath()).trim();
+			if(readString.isBlank())
+				throw new Exception();
+			return readString;
 		} 
 		catch (Exception e) 
 		{
 			try
 			{
 				System.out.println("Trying file path: " + new File("apikey.txt").getAbsolutePath().replace("/src", "").replace("C:\\", "\\mn\\c\\"));
-				return Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("C:\\", "\\mn\\c\\")).toPath()).trim();
+				String readString = Files.readString(new File(new File("apikey.txt").getAbsolutePath().replace("C:\\", "\\mn\\c\\")).toPath()).trim();
+				if(readString.isBlank())
+					throw new Exception();
+				return readString;
 			} 
 			catch (Exception e2)
 			{
-				JOptionPane.showMessageDialog(null, "No OpenAI API key is detected. If you continue,\n"
+				JOptionPane.showMessageDialog(null, "No OpenAI API key is detected. If you continue with no key,\n"
 						+ "the server will still run, but any request to\n"
-						+ "the /ai or /ai/can endpoints will return an error.", 
+						+ "the /ai or /ai/can endpoints will return an error.\n\n"
+						+ "Put a valid OpenAI api key in the file \"apikey.txt\"", 
 						"No OpenAI API Key", JOptionPane.ERROR_MESSAGE);
+				
+				File create = new File("apikey.txt");
+				try {create.createNewFile();} catch (IOException e1) {}
 			}
 
 			return null;
@@ -472,15 +482,16 @@ public class CS1200API
 		try
 		{
 			response = client.send(request, HttpResponse.BodyHandlers.ofString());
-		} catch (IOException e)
+		} 
+		catch (IOException e)
 		{
-		} catch (InterruptedException e)
+		} 
+		catch (InterruptedException e)
 		{
 		}
 
 		String responseBody = response.body();
 		System.out.println(responseBody);
-
 
 		JSONObject root = new JSONObject(responseBody);
 		JSONArray choices = root.getJSONArray("choices");
